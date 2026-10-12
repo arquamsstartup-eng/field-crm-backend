@@ -93,17 +93,18 @@ const deleteUser = (req, res) => {
 
 
 const loginUser = (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, username } = req.body;
+    const identifier = email || username;
     
-    // SQL me check kar rahe hain ki is email/password wala koi user hai ya nahi
-    const sql = 'SELECT * FROM users WHERE email = ? AND password = ?';
+    // SQL me check: email se bhi login ho sake aur emp_code / username se bhi
+    const sql = 'SELECT * FROM users WHERE (email = ? OR emp_code = ? OR name = ?) AND password = ?';
     
-    db.query(sql, [email, password], (err, results) => {
+    db.query(sql, [identifier, identifier, identifier, password], (err, results) => {
         if (err) return res.status(500).json({ error: "Database error" });
         
-        // Agar result 0 hai, matlab galat password
+        // Agar result 0 hai, matlab galat credentials
         if (results.length === 0) {
-            return res.status(401).json({ error: "Invalid Email or Password" });
+            return res.status(401).json({ error: "Invalid Email/Username or Password" });
         }
         
         // Agar mil gaya, toh uski details bhej do
