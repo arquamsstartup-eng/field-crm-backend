@@ -180,6 +180,16 @@ CREATE TABLE `products` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+INSERT INTO `products` VALUES 
+(1,'PRD-001','Hydraulic Press Brake 100T','Trumpf','Sales','Machinery',3500000.00,'Active','2026-09-30 22:24:04'),
+(2,'PRD-002','CNC Fiber Laser 3kW','Mazak','Sales','Machinery',5800000.00,'Active','2026-09-30 22:24:04'),
+(3,'PRD-003','CNC Turret Punch Press','Amada','Sales','Machinery',4200000.00,'Active','2026-09-30 22:24:04'),
+(4,'PRD-004','Hydraulic Shearing 6mm','Haas Automation','Sales','Machinery',1800000.00,'Active','2026-09-30 22:24:04'),
+(5,'PRD-005','CNC Laser Tube Cutting 2kW','DMG Mori','Sales','Machinery',6500000.00,'Active','2026-09-30 22:24:04'),
+(6,'PRD-006','Robotic Welding Cell 6-Axis','Fanuc','Sales','Automation',2800000.00,'Active','2026-09-30 22:24:04'),
+(7,'PRD-007','Fiber Laser Optics & Ceramic Ring Kit','Mazak','Service','Spare Parts',45000.00,'Active','2026-09-30 22:24:04'),
+(8,'PRD-008','High-Pressure Hydraulic Seal & Valve Kit','Trumpf','Service','Spare Parts',28000.00,'Active','2026-09-30 22:24:04');
+
 -- 11. customers (EMPTY - Clean Production)
 DROP TABLE IF EXISTS `customers`;
 CREATE TABLE `customers` (
