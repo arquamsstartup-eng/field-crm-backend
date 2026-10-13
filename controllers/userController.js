@@ -94,12 +94,16 @@ const deleteUser = (req, res) => {
 
 const loginUser = (req, res) => {
     const { email, password, username } = req.body;
-    const identifier = email || username;
+    const identifier = (email || username || '').trim();
     
-    // SQL me check: email se bhi login ho sake aur emp_code / username se bhi
-    const sql = 'SELECT * FROM users WHERE (email = ? OR emp_code = ? OR name = ?) AND password = ?';
+    // SQL: email, emp_code, name, ya seedha 'admin' likhne par bhi match ho
+    const sql = `
+        SELECT * FROM users 
+        WHERE (LOWER(email) = LOWER(?) OR LOWER(emp_code) = LOWER(?) OR LOWER(name) = LOWER(?) OR (LOWER(?) = 'admin' AND role = 'ADMIN')) 
+        AND password = ?
+    `;
     
-    db.query(sql, [identifier, identifier, identifier, password], (err, results) => {
+    db.query(sql, [identifier, identifier, identifier, identifier, password], (err, results) => {
         if (err) return res.status(500).json({ error: "Database error" });
         
         // Agar result 0 hai, matlab galat credentials
