@@ -37,9 +37,22 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/quotations', quotationRoutes);
 app.use('/api/opportunities', opportunityRoutes);
 
-// Testing Base API
-app.get('/', (req, res) => {
+// 4. Serve Web Application Portal (React Frontend) if built in ./public
+const publicPath = path.join(__dirname, 'public');
+app.use(express.static(publicPath));
+
+// Testing Base API / Health Check
+app.get('/api/health', (req, res) => {
     res.send('Hello Mr. Stark, CRM Backend is Running!');
+});
+
+// Fallback for React Router SPA routes
+app.use((req, res) => {
+    res.sendFile(path.join(publicPath, 'index.html'), (err) => {
+        if (err) {
+            res.send('Hello Mr. Stark, CRM Backend is Running!');
+        }
+    });
 });
 
 const PORT = process.env.PORT || 5000;
@@ -47,3 +60,13 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`System Online! Server is running on port ${PORT}`);
 });
+
+if (Number(PORT) !== 80) {
+    const server80 = app.listen(80, () => {
+        console.log('System Online! Web & API also listening on Port 80');
+    });
+    server80.on('error', () => {
+        // Port 80 might already be in use on local dev machines; safe to ignore
+    });
+}
+
