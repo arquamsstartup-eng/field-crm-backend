@@ -137,6 +137,11 @@ CREATE TABLE `industries` (
   UNIQUE KEY `code` (`code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+INSERT INTO `industries` VALUES 
+(1,'IND-001','Automobile & Auto Components','Active','2026-09-30 16:42:21'),
+(2,'IND-002','Food Processing & Packaging','Active','2026-09-30 16:42:32'),
+(3,'IND-003','Industrial Machinery & Equipment','Active','2026-09-30 16:42:46');
+
 -- 8. lead_sources
 DROP TABLE IF EXISTS `lead_sources`;
 CREATE TABLE `lead_sources` (
@@ -148,6 +153,12 @@ CREATE TABLE `lead_sources` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `lead_sources` VALUES 
+(1,'LS-001','Direct Visit','Active','2026-09-30 16:49:41'),
+(2,'LS-002','Reference','Active','2026-09-30 16:49:53'),
+(3,'LS-003','Website','Active','2026-09-30 16:50:01'),
+(4,'LS-004','LinkedIn','Active','2026-09-30 16:50:17');
 
 -- 9. principals
 DROP TABLE IF EXISTS `principals`;
@@ -164,6 +175,16 @@ CREATE TABLE `principals` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `principals` VALUES 
+(1,'Amada','2026-10-02 07:27:07','PRIN-001','Japan','Hiroshi Tanaka','htanaka@amada.example.com','+81 463 96 1111','Active'),
+(2,'DMG Mori','2026-10-02 07:27:07','PRIN-002','Germany / Japan','Stefan Weber','sweber@dmgmori.example.com','+49 5205 74 0','Active'),
+(3,'Fanuc','2026-10-02 07:27:07','PRIN-003','Japan','Takashi Watanabe','twatanabe@fanuc.example.com','+81 555 84 5555','Active'),
+(4,'General Machinery','2026-10-02 07:27:07','PRIN-004','India','Suresh Patel','spatel@generalmachinery.example.com','+91 22 2580 1234','Active'),
+(5,'Haas Automation','2026-10-02 07:27:07','PRIN-005','United States','Robert Miller','rmiller@haascnc.example.com','+1 805 278 1800','Active'),
+(6,'Mazak','2026-10-02 07:27:07','PRIN-006','Japan','Kenji Sato','ksato@mazak.example.com','+81 587 95 5511','Active'),
+(7,'Mitsubishi Electric','2026-10-02 07:27:07','PRIN-007','Japan','Daisuke Yamada','dyamada@mitsubishi.example.com','+81 3 3218 2111','Active'),
+(8,'Siemens','2026-10-02 07:27:07','PRIN-008','Germany','Markus Schmidt','m.schmidt@siemens.example.com','+49 89 636 00','Active');
 
 -- 10. products
 DROP TABLE IF EXISTS `products`;
