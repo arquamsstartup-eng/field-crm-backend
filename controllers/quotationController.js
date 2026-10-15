@@ -1,26 +1,37 @@
 const db = require('../config/db');
 
-// Helper to sync opportunity stage based on quotation status / revision
-const syncOpportunityStage = (opportunityId, quoteNo, status) => {
+// Helper to sync opportunity stage based on overall quotation statuses & revisions
+const syncOpportunityStage = (opportunityId) => {
     if (!opportunityId) return;
 
-    let targetStage = null;
-    if (status === 'ACCEPTED') {
-        targetStage = 'Won Deals';
-    } else if (status === 'REJECTED') {
-        targetStage = 'Lost Deals';
-    } else if (quoteNo && (quoteNo.includes('Rev 1') || quoteNo.includes('Rev 2') || quoteNo.includes('Rev 3') || quoteNo.includes('Rev 4'))) {
-        targetStage = 'Negotiation';
-    } else if (status === 'SENT' || status === 'DRAFT') {
-        targetStage = 'Proposal Sent';
-    }
+    db.query("SELECT quote_no, status FROM quotations WHERE opportunity_id = ? ORDER BY id DESC", [opportunityId], (err, rows) => {
+        if (err || rows.length === 0) return;
 
-    if (targetStage) {
-        db.query("UPDATE opportunities SET stage = ? WHERE id = ?", [targetStage, opportunityId], (err) => {
-            if (err) console.error("Error syncing opportunity stage:", err);
-            else console.log(`Opportunity #${opportunityId} stage automatically shifted to '${targetStage}'`);
-        });
-    }
+        let targetStage = null;
+        // 1. If ANY quotation for this opportunity is ACCEPTED, opportunity is WON!
+        if (rows.some(r => r.status === 'ACCEPTED')) {
+            targetStage = 'Won Deals';
+        }
+        // 2. If ALL quotations are REJECTED, opportunity is LOST!
+        else if (rows.every(r => r.status === 'REJECTED')) {
+            targetStage = 'Lost Deals';
+        }
+        // 3. If any active quotation has revisions (Rev 1, Rev 2, etc.), it is under Negotiation!
+        else if (rows.some(r => r.quote_no && (r.quote_no.includes('Rev 1') || r.quote_no.includes('Rev 2') || r.quote_no.includes('Rev 3') || r.quote_no.includes('Rev 4')))) {
+            targetStage = 'Negotiation';
+        }
+        // 4. If any quotation is SENT or DRAFT, proposal is sent!
+        else if (rows.some(r => r.status === 'SENT' || r.status === 'DRAFT')) {
+            targetStage = 'Proposal Sent';
+        }
+
+        if (targetStage) {
+            db.query("UPDATE opportunities SET stage = ? WHERE id = ?", [targetStage, opportunityId], (errUpdate) => {
+                if (errUpdate) console.error("Error syncing opportunity stage:", errUpdate);
+                else console.log(`Opportunity #${opportunityId} stage automatically shifted to '${targetStage}'`);
+            });
+        }
+    });
 };
 
 exports.createQuotation = (req, res) => {
@@ -62,7 +73,7 @@ exports.createQuotation = (req, res) => {
                 const quotationId = result.insertId;
 
                 // Sync Opportunity Stage
-                syncOpportunityStage(opportunity_id, quote_no, status || 'DRAFT');
+                syncOpportunityStage(opportunity_id);
 
                 if (items && items.length > 0) {
                     const itemQ = `INSERT INTO quotation_items (quotation_id, product_name, qty, unit_rate, discount_percent, net_amount) VALUES ?`;
@@ -108,7 +119,7 @@ exports.updateQuotation = (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
 
         // Sync Opportunity Stage
-        syncOpportunityStage(opportunity_id, quote_no, status);
+        syncOpportunityStage(opportunity_id);
 
         // Replace Items
         db.query("DELETE FROM quotation_items WHERE quotation_id = ?", [id], (errDel) => {
@@ -170,7 +181,7 @@ exports.createRevision = (req, res) => {
                 const newQuoteId = result.insertId;
 
                 // Automatically sync opportunity to 'Negotiation'
-                syncOpportunityStage(prev.opportunity_id, newRevNo, 'SENT');
+                syncOpportunityStage(prev.opportunity_id);
 
                 if (finalItems.length > 0) {
                     const itemQ = `INSERT INTO quotation_items (quotation_id, product_name, qty, unit_rate, discount_percent, net_amount) VALUES ?`;
