@@ -55,6 +55,21 @@ app.use((req, res) => {
     });
 });
 
+// Global Error Handling Middleware
+app.use((err, req, res, next) => {
+    console.error('Unhandled Server Error:', err.message);
+    res.status(500).json({ error: 'Internal Server Error', message: err.message });
+});
+
+// Process-level crash prevention
+process.on('uncaughtException', (err) => {
+    console.error('CRITICAL Uncaught Exception (Handled):', err.message);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('CRITICAL Unhandled Rejection (Handled):', reason);
+});
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
@@ -69,4 +84,5 @@ if (Number(PORT) !== 80) {
         // Port 80 might already be in use on local dev machines; safe to ignore
     });
 }
+
 
