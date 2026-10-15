@@ -205,11 +205,16 @@ exports.getQuotations = (req, res) => {
 exports.getQuotationById = (req, res) => {
     const { id } = req.params;
     const q = `
-        SELECT q.*, c.name as customer_name, o.opportunity_no, o.opportunity_name, cp.name as contact_name 
+        SELECT q.*, 
+               c.name as customer_name, c.address as customer_address, c.city as customer_city, c.state as customer_state,
+               cp.name as contact_name, cp.designation as contact_designation, cp.mobile as contact_mobile, cp.email as contact_email,
+               o.opportunity_no, o.opportunity_name as deal_subject, o.principal_name,
+               u.name as salesperson_name, u.mobile as salesperson_mobile, u.email as salesperson_email
         FROM quotations q 
         LEFT JOIN customers c ON q.customer_id = c.id
         LEFT JOIN opportunities o ON q.opportunity_id = o.id
         LEFT JOIN contacts cp ON q.contact_id = cp.id
+        LEFT JOIN users u ON o.assigned_salesperson_id = u.id
         WHERE q.id = ?
     `;
     db.query(q, [id], (err, rows) => {
