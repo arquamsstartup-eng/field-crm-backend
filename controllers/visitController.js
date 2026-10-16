@@ -98,11 +98,29 @@ exports.createVisit = (req, res) => {
 };
 
 exports.getAllVisits = (req, res) => {
+    const { role, branch_id, emp_id } = req.query;
+
+    let whereClause = "";
+    const params = [];
+
+    // Branch and role-based scoping:
+    // If role is MANAGER and branch_id is supplied, only fetch visits of employees from that branch
+    if (role === 'MANAGER' && branch_id) {
+        whereClause = "WHERE u.branch_id = ?";
+        params.push(Number(branch_id));
+    } else if ((role === 'SALES_EXEC' || role === 'SERVICE_ENG') && emp_id) {
+        // Field staff only sees their own visits
+        whereClause = "WHERE v.emp_id = ?";
+        params.push(Number(emp_id));
+    }
+    // ADMIN (or unconstrained) sees all visits across all branches
+
     const sql = `
         SELECT 
             v.*, 
             u.name as employee_name, 
             b.name as branch_name,
+            b.id as employee_branch_id,
             c.name as customer_name,
             a.name as activity_name,
             p.name as principal_name
@@ -112,9 +130,10 @@ exports.getAllVisits = (req, res) => {
         LEFT JOIN customers c ON v.customer_id = c.id
         LEFT JOIN activity_types a ON v.activity_type_id = a.id
         LEFT JOIN principals p ON v.principal_id = p.id
+        ${whereClause}
         ORDER BY v.id DESC
     `;
-    db.query(sql, (err, results) => {
+    db.query(sql, params, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.status(200).json({ success: true, data: results });
     });
