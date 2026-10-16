@@ -4,13 +4,17 @@ const db = require('../config/db');
 const syncOpportunityStage = (opportunityId) => {
     if (!opportunityId) return;
 
-    db.query("SELECT quote_no, status FROM quotations WHERE opportunity_id = ? ORDER BY id DESC", [opportunityId], (err, rows) => {
+    db.query("SELECT quote_no, status, grand_total FROM quotations WHERE opportunity_id = ? ORDER BY id DESC", [opportunityId], (err, rows) => {
         if (err || rows.length === 0) return;
 
         let targetStage = null;
+        let wonGrandTotal = null;
+
         // 1. If ANY quotation for this opportunity is ACCEPTED, opportunity is WON!
-        if (rows.some(r => r.status === 'ACCEPTED')) {
+        const accepted = rows.filter(r => r.status === 'ACCEPTED');
+        if (accepted.length > 0) {
             targetStage = 'Won Deals';
+            wonGrandTotal = accepted[0].grand_total;
         }
         // 2. If ALL quotations are REJECTED, opportunity is LOST!
         else if (rows.every(r => r.status === 'REJECTED')) {
@@ -26,7 +30,15 @@ const syncOpportunityStage = (opportunityId) => {
         }
 
         if (targetStage) {
-            db.query("UPDATE opportunities SET stage = ? WHERE id = ?", [targetStage, opportunityId], (errUpdate) => {
+            let sql = "UPDATE opportunities SET stage = ? WHERE id = ?";
+            let params = [targetStage, opportunityId];
+
+            if (targetStage === 'Won Deals' && wonGrandTotal) {
+                sql = "UPDATE opportunities SET stage = ?, estimated_value = ? WHERE id = ?";
+                params = [targetStage, wonGrandTotal, opportunityId];
+            }
+
+            db.query(sql, params, (errUpdate) => {
                 if (errUpdate) console.error("Error syncing opportunity stage:", errUpdate);
                 else console.log(`Opportunity #${opportunityId} stage automatically shifted to '${targetStage}'`);
             });
@@ -95,43 +107,69 @@ exports.createQuotation = (req, res) => {
 
 exports.updateQuotation = (req, res) => {
     const { id } = req.params;
-    const {
+    let {
         quote_no, customer_id, contact_id, opportunity_id, quote_date,
         validity_days, status, offer_notes, terms_conditions,
         subtotal, discount_amount, tax_amount, grand_total, items
     } = req.body;
 
-    const sql = `
-        UPDATE quotations SET
-        quote_no = ?, customer_id = ?, contact_id = ?, opportunity_id = ?, quote_date = ?,
-        validity_days = ?, status = ?, offer_notes = ?, terms_conditions = ?,
-        subtotal = ?, discount_amount = ?, tax_amount = ?, grand_total = ?
-        WHERE id = ?
-    `;
+    // Fetch existing quote to preserve fields if partial payload is sent
+    db.query("SELECT * FROM quotations WHERE id = ?", [id], (errFind, rows) => {
+        if (errFind || rows.length === 0) return res.status(404).json({ error: "Quotation not found" });
 
-    db.query(sql, [
-        quote_no, customer_id || null, contact_id || null, opportunity_id || null,
-        quote_date || new Date().toISOString().split('T')[0], validity_days || 30,
-        status || 'DRAFT', offer_notes || '', terms_conditions || '',
-        subtotal || 0, discount_amount || 0, tax_amount || 0, grand_total || 0,
-        id
-    ], (err) => {
-        if (err) return res.status(500).json({ error: err.message });
+        const existing = rows[0];
+        const finalOppId = opportunity_id || existing.opportunity_id;
+        const finalQuoteNo = quote_no || existing.quote_no;
+        const finalCustomerId = customer_id !== undefined ? customer_id : existing.customer_id;
+        const finalContactId = contact_id !== undefined ? contact_id : existing.contact_id;
+        const finalQuoteDate = quote_date || existing.quote_date;
+        const finalValidityDays = validity_days !== undefined ? validity_days : existing.validity_days;
+        const finalStatus = status || existing.status;
+        const finalOfferNotes = offer_notes !== undefined ? offer_notes : existing.offer_notes;
+        const finalTerms = terms_conditions !== undefined ? terms_conditions : existing.terms_conditions;
+        const finalSubtotal = subtotal !== undefined ? subtotal : existing.subtotal;
+        const finalDiscount = discount_amount !== undefined ? discount_amount : existing.discount_amount;
+        const finalTax = tax_amount !== undefined ? tax_amount : existing.tax_amount;
+        const finalGrandTotal = grand_total !== undefined ? grand_total : existing.grand_total;
 
-        // Sync Opportunity Stage
-        syncOpportunityStage(opportunity_id);
+        const sql = `
+            UPDATE quotations SET
+            quote_no = ?, customer_id = ?, contact_id = ?, opportunity_id = ?, quote_date = ?,
+            validity_days = ?, status = ?, offer_notes = ?, terms_conditions = ?,
+            subtotal = ?, discount_amount = ?, tax_amount = ?, grand_total = ?
+            WHERE id = ?
+        `;
 
-        // Replace Items
-        db.query("DELETE FROM quotation_items WHERE quotation_id = ?", [id], (errDel) => {
-            if (errDel) console.error("Error deleting old quote items:", errDel);
+        db.query(sql, [
+            finalQuoteNo, finalCustomerId, finalContactId, finalOppId,
+            finalQuoteDate ? (typeof finalQuoteDate === 'string' ? finalQuoteDate.split('T')[0] : finalQuoteDate) : null,
+            finalValidityDays, finalStatus, finalOfferNotes, finalTerms,
+            finalSubtotal, finalDiscount, finalTax, finalGrandTotal,
+            id
+        ], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
 
-            if (items && items.length > 0) {
-                const itemQ = `INSERT INTO quotation_items (quotation_id, product_name, qty, unit_rate, discount_percent, net_amount) VALUES ?`;
-                const values = items.map(i => [id, i.name || i.product_name, i.qty || 1, i.rate || i.unit_rate || 0, i.disc_percent || i.discount_percent || 0, i.net_amount || (i.qty * i.rate)]);
-                
-                db.query(itemQ, [values], (errInsert) => {
-                    if (errInsert) console.error("Error updating quote items:", errInsert);
-                    return res.json({ success: true, message: 'Quotation updated successfully!' });
+            // Sync Opportunity Stage
+            if (finalOppId) {
+                syncOpportunityStage(finalOppId);
+            }
+
+            // Replace Items only if items array is explicitly provided
+            if (Array.isArray(items)) {
+                db.query("DELETE FROM quotation_items WHERE quotation_id = ?", [id], (errDel) => {
+                    if (errDel) console.error("Error deleting old quote items:", errDel);
+
+                    if (items.length > 0) {
+                        const itemQ = `INSERT INTO quotation_items (quotation_id, product_name, qty, unit_rate, discount_percent, net_amount) VALUES ?`;
+                        const values = items.map(i => [id, i.name || i.product_name, i.qty || 1, i.rate || i.unit_rate || 0, i.disc_percent || i.discount_percent || 0, i.net_amount || (i.qty * i.rate)]);
+                        
+                        db.query(itemQ, [values], (errInsert) => {
+                            if (errInsert) console.error("Error updating quote items:", errInsert);
+                            return res.json({ success: true, message: 'Quotation updated successfully!' });
+                        });
+                    } else {
+                        return res.json({ success: true, message: 'Quotation updated successfully!' });
+                    }
                 });
             } else {
                 return res.json({ success: true, message: 'Quotation updated successfully!' });

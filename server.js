@@ -72,8 +72,42 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const PORT = process.env.PORT || 5000;
 
+// Auto-align Opportunity stages and won values with Quotations on boot
+const syncOpportunitiesOnBoot = () => {
+    const syncSql = `
+        UPDATE opportunities o
+        JOIN (
+            SELECT opportunity_id,
+                   CASE 
+                       WHEN SUM(status = 'ACCEPTED') > 0 THEN 'Won Deals'
+                       WHEN SUM(status = 'REJECTED') = COUNT(*) AND COUNT(*) > 0 THEN 'Lost Deals'
+                       WHEN SUM(quote_no LIKE '%Rev 1%' OR quote_no LIKE '%Rev 2%' OR quote_no LIKE '%Rev 3%' OR quote_no LIKE '%Rev 4%') > 0 THEN 'Negotiation'
+                       WHEN SUM(status = 'SENT' OR status = 'DRAFT') > 0 THEN 'Proposal Sent'
+                   END as calculated_stage,
+                   MAX(CASE WHEN status = 'ACCEPTED' THEN grand_total ELSE NULL END) as won_grand_total
+            FROM quotations
+            WHERE opportunity_id IS NOT NULL
+            GROUP BY opportunity_id
+        ) q_stages ON o.id = q_stages.opportunity_id
+        SET o.stage = q_stages.calculated_stage,
+            o.estimated_value = CASE 
+                WHEN q_stages.calculated_stage = 'Won Deals' AND q_stages.won_grand_total IS NOT NULL AND q_stages.won_grand_total > 0 
+                THEN q_stages.won_grand_total 
+                ELSE o.estimated_value 
+            END
+        WHERE q_stages.calculated_stage IS NOT NULL 
+          AND (o.stage != q_stages.calculated_stage OR (q_stages.calculated_stage = 'Won Deals' AND q_stages.won_grand_total IS NOT NULL AND o.estimated_value != q_stages.won_grand_total));
+    `;
+    db.query(syncSql, (err, res) => {
+        if (!err && res && res.changedRows > 0) {
+            console.log(`[BOOT SYNC] Automatically aligned ${res.changedRows} opportunity stage(s) with quotations!`);
+        }
+    });
+};
+
 app.listen(PORT, () => {
     console.log(`System Online! Server is running on port ${PORT}`);
+    syncOpportunitiesOnBoot();
 });
 
 if (Number(PORT) !== 80) {

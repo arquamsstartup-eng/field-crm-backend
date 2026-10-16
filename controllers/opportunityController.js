@@ -176,33 +176,68 @@ exports.updateOpportunity = (req, res) => {
     });
 };
 
-exports.getAllOpportunities = (req, res) => {
-    const sql = `
-        SELECT o.*, c.name as customer_name, u.name as salesperson_name, cp.name as contact_name
-        FROM opportunities o
-        LEFT JOIN customers c ON o.customer_id = c.id
-        LEFT JOIN users u ON o.assigned_salesperson_id = u.id
-        LEFT JOIN contacts cp ON o.contact_person_id = cp.id
-        ORDER BY o.id DESC
+const syncOpportunitiesFromQuotes = (callback) => {
+    const syncSql = `
+        UPDATE opportunities o
+        JOIN (
+            SELECT opportunity_id,
+                   CASE 
+                       WHEN SUM(status = 'ACCEPTED') > 0 THEN 'Won Deals'
+                       WHEN SUM(status = 'REJECTED') = COUNT(*) AND COUNT(*) > 0 THEN 'Lost Deals'
+                       WHEN SUM(quote_no LIKE '%Rev 1%' OR quote_no LIKE '%Rev 2%' OR quote_no LIKE '%Rev 3%' OR quote_no LIKE '%Rev 4%') > 0 THEN 'Negotiation'
+                       WHEN SUM(status = 'SENT' OR status = 'DRAFT') > 0 THEN 'Proposal Sent'
+                   END as calculated_stage,
+                   MAX(CASE WHEN status = 'ACCEPTED' THEN grand_total ELSE NULL END) as won_grand_total
+            FROM quotations
+            WHERE opportunity_id IS NOT NULL
+            GROUP BY opportunity_id
+        ) q_stages ON o.id = q_stages.opportunity_id
+        SET o.stage = q_stages.calculated_stage,
+            o.estimated_value = CASE 
+                WHEN q_stages.calculated_stage = 'Won Deals' AND q_stages.won_grand_total IS NOT NULL AND q_stages.won_grand_total > 0 
+                THEN q_stages.won_grand_total 
+                ELSE o.estimated_value 
+            END
+        WHERE q_stages.calculated_stage IS NOT NULL 
+          AND (o.stage != q_stages.calculated_stage OR (q_stages.calculated_stage = 'Won Deals' AND q_stages.won_grand_total IS NOT NULL AND o.estimated_value != q_stages.won_grand_total));
     `;
-    db.query(sql, (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.status(200).json({ success: true, data: results });
+    db.query(syncSql, (err) => {
+        if (err) console.error("Auto-sync opportunities error:", err);
+        if (callback) callback();
+    });
+};
+
+exports.getAllOpportunities = (req, res) => {
+    syncOpportunitiesFromQuotes(() => {
+        const sql = `
+            SELECT o.*, c.name as customer_name, u.name as salesperson_name, cp.name as contact_name
+            FROM opportunities o
+            LEFT JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN users u ON o.assigned_salesperson_id = u.id
+            LEFT JOIN contacts cp ON o.contact_person_id = cp.id
+            ORDER BY o.id DESC
+        `;
+        db.query(sql, (err, results) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.status(200).json({ success: true, data: results });
+        });
     });
 };
 
 exports.getOpportunityStats = (req, res) => {
-    const sql = `
-        SELECT 
-            COUNT(id) as active_count, 
-            SUM(estimated_value) as total_pipeline_value,
-            SUM(CASE WHEN stage = 'Won Deals' THEN estimated_value ELSE 0 END) as won_value,
-            COUNT(CASE WHEN stage = 'Won Deals' THEN id END) as won_count
-        FROM opportunities
-    `;
-    db.query(sql, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.status(200).json({ success: true, data: rows[0] });
+    syncOpportunitiesFromQuotes(() => {
+        const sql = `
+            SELECT 
+                COUNT(id) as active_count, 
+                SUM(estimated_value) as total_pipeline_value,
+                SUM(CASE WHEN stage = 'Won Deals' THEN estimated_value ELSE 0 END) as won_value,
+                COUNT(CASE WHEN stage = 'Won Deals' THEN id END) as won_count
+            FROM opportunities
+        `;
+        db.query(sql, (err, rows) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.status(200).json({ success: true, data: rows[0] });
+        });
     });
 };
 
