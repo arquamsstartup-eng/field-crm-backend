@@ -8,5 +8,6 @@ router.get('/:id', opportunityController.getOpportunityById);
 router.post('/', opportunityController.createOpportunity);
 router.post('/:id/loss', opportunityController.recordLoss);
 router.put('/:id', opportunityController.updateOpportunity);
+router.delete('/:id', opportunityController.deleteOpportunity);
 
 module.exports = router;

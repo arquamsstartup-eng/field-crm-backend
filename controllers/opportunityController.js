@@ -295,3 +295,28 @@ exports.recordLoss = (req, res) => {
     });
 };
 
+exports.deleteOpportunity = (req, res) => {
+    const { id } = req.params;
+    
+    db.query("SELECT id FROM quotations WHERE opportunity_id = ?", [id], (errQ, qRows) => {
+        if (!errQ && qRows && qRows.length > 0) {
+            const qIds = qRows.map(q => q.id);
+            db.query("DELETE FROM quotation_items WHERE quotation_id IN (?)", [qIds], (errItems) => {
+                if (errItems) console.error("Error deleting quotation items:", errItems);
+                db.query("DELETE FROM quotations WHERE opportunity_id = ?", [id], (errQDel) => {
+                    if (errQDel) console.error("Error deleting quotations:", errQDel);
+                });
+            });
+        }
+        
+        db.query("DELETE FROM opportunity_products WHERE opportunity_id = ?", [id], (errProd) => {
+            if (errProd) console.error("Error deleting opportunity products:", errProd);
+            db.query("DELETE FROM opportunities WHERE id = ?", [id], (errOpp) => {
+                if (errOpp) return res.status(500).json({ error: errOpp.message });
+                res.status(200).json({ success: true, message: "Opportunity and linked records deleted successfully!" });
+            });
+        });
+    });
+};
+
+
