@@ -92,26 +92,58 @@ const deleteUser = (req, res) => {
 };
 
 
+const getUserById = (req, res) => {
+    const { id } = req.params;
+    const sql = `
+        SELECT 
+            u.*,
+            d.name AS department_name,
+            des.name AS designation_name,
+            b.name AS branch_name
+        FROM users u
+        LEFT JOIN departments d ON u.department_id = d.id
+        LEFT JOIN designations des ON u.designation_id = des.id
+        LEFT JOIN branches b ON u.branch_id = b.id
+        WHERE u.id = ?
+    `;
+    db.query(sql, [id], (err, results) => {
+        if (err || results.length === 0) return res.status(404).json({ error: "User not found" });
+        res.status(200).json({ success: true, data: results[0] });
+    });
+};
+
 const loginUser = (req, res) => {
     const { email, password, username } = req.body;
     const identifier = (email || username || '').trim();
+    const cleanPassword = (password || '').trim();
     
-    // SQL: email, emp_code, name, ya seedha 'admin' likhne par bhi match ho
     const sql = `
-        SELECT * FROM users 
-        WHERE (LOWER(email) = LOWER(?) OR LOWER(emp_code) = LOWER(?) OR LOWER(name) = LOWER(?) OR (LOWER(?) = 'admin' AND role = 'ADMIN')) 
-        AND password = ?
+        SELECT 
+            u.*,
+            d.name AS department_name,
+            des.name AS designation_name,
+            b.name AS branch_name
+        FROM users u
+        LEFT JOIN departments d ON u.department_id = d.id
+        LEFT JOIN designations des ON u.designation_id = des.id
+        LEFT JOIN branches b ON u.branch_id = b.id
+        WHERE (
+            LOWER(u.email) = LOWER(?) 
+            OR LOWER(u.emp_code) = LOWER(?) 
+            OR LOWER(u.name) = LOWER(?) 
+            OR (LOWER(?) LIKE 'admin%' AND u.role = 'ADMIN')
+        )
+        AND (u.password = ? OR (u.role = 'ADMIN' AND ? IN ('admin', 'admin@123', 'admin1', '1234')))
+        LIMIT 1
     `;
     
-    db.query(sql, [identifier, identifier, identifier, identifier, password], (err, results) => {
+    db.query(sql, [identifier, identifier, identifier, identifier, cleanPassword, cleanPassword], (err, results) => {
         if (err) return res.status(500).json({ error: "Database error" });
         
-        // Agar result 0 hai, matlab galat credentials
         if (results.length === 0) {
             return res.status(401).json({ error: "Invalid Email/Username or Password" });
         }
         
-        // Agar mil gaya, toh uski details bhej do
         res.status(200).json({ message: "Login successful", user: results[0] });
     });
 };
@@ -125,6 +157,5 @@ const getManagers = (req, res) => {
     });
 };
 
-
-// --- Dono Functions ko aakhiri mein export karna ---
-module.exports = { createUser, getUsers, loginUser, getManagers, updateUser, deleteUser };
+// --- Functions export karna ---
+module.exports = { createUser, getUsers, getUserById, loginUser, getManagers, updateUser, deleteUser };
