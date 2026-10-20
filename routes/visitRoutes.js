@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const visitController = require('../controllers/visitController');
+const { verifyToken } = require('../middleware/authMiddleware');
 const multer = require('multer');
 const path = require('path');
 
@@ -16,8 +17,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// Define Routes
-// We use .any() so it accepts 'report_file' and 'receipt_X' dynamic names
+// Security Guard: All visit routes require valid JWT token
+router.use(verifyToken);
+
 router.post('/add', upload.any(), visitController.createVisit);
 router.get('/all', visitController.getAllVisits);
 router.get('/:id', visitController.getVisitById);

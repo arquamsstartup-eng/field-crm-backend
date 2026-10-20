@@ -1,17 +1,26 @@
 const express = require('express');
 const router = express.Router();
+const { verifyToken } = require('../middleware/authMiddleware');
 
-// Yahan loginUser ko import me add kiya
-const { createUser, getManagers, getUsers, getUserById, loginUser, updateUser, deleteUser } = require('../controllers/userController'); 
+const { 
+    createUser, 
+    getManagers, 
+    getUsers, 
+    getUserById, 
+    loginUser, 
+    updateUser, 
+    deleteUser 
+} = require('../controllers/userController'); 
 
-router.post('/add', createUser);
-router.get('/', getUsers);
-router.get('/managers', getManagers);
-router.get('/:id', getUserById);
-router.put('/:id', updateUser);
-router.delete('/:id', deleteUser);
-
-// NAYA: Login route
+// 1. PUBLIC ROUTE: Login entrypoint
 router.post('/login', loginUser);
+
+// 2. PROTECTED ROUTES: Require valid JWT token
+router.post('/add', verifyToken, createUser);
+router.get('/', verifyToken, getUsers);
+router.get('/managers', verifyToken, getManagers);
+router.get('/:id', verifyToken, getUserById);
+router.put('/:id', verifyToken, updateUser);
+router.delete('/:id', verifyToken, deleteUser);
 
 module.exports = router;

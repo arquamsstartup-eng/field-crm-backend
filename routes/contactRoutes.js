@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const { verifyToken } = require('../middleware/authMiddleware');
 const contactController = require('../controllers/contactController');
+
+// Security Guard: All contact routes require valid JWT token
+router.use(verifyToken);
 
 router.post('/', contactController.createContact);
 router.get('/all', contactController.getAllContacts);
